@@ -44,7 +44,7 @@ pub fn log_startup() {
     if enabled() {
         log::info!("NaviCore: baglanti baslatmak icin giris zorunlu (dogrulama: {})", *VERIFY_URL);
     } else {
-        log::info!("NaviCore: giris zorunlulugu KAPALI (RD_REQUIRE_LOGIN ayarlanmamis)");
+        log::info!("NaviCore: giris zorunlulugu KAPALI (RD_REQUIRE_LOGIN=1 degil)");
     }
 }
 
