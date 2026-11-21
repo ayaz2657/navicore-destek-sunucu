@@ -1,0 +1,49 @@
+# NaviCore Destek sunucusu -- yalniz Linux x86_64 hbbs/hbbr derlemesi + herkese acik GitHub Release.
+# Fark (upstream rustdesk-server 1.1.16): src/navicore_auth.rs -- baglanti baslatan istemcide giris zorunlulugu
+# (RD_REQUIRE_LOGIN=1). Kaynak AGPL-3.0, bu repoda.
+name: NaviCore Destek Sunucu
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - "navicore-*"
+    paths-ignore:
+      - "**.md"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: navicore-sunucu-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-linux-x64:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Rust (stable)
+        run: rustup toolchain install stable --profile minimal && rustup default stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Derle (hbbs, hbbr)
+        run: cargo build --release --locked --bin hbbs --bin hbbr
+      - name: Testler
+        run: cargo test --release --locked --lib
+      - name: Paketle
+        run: |
+          mkdir -p out
+          cp target/release/hbbs target/release/hbbr out/
+          strip out/hbbs out/hbbr
+          (cd out && sha256sum hbbs hbbr > SHA256SUMS.txt && cat SHA256SUMS.txt)
+      - name: GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="navicore-1.1.16-r${{ github.run_number }}"
+          gh release create "$TAG" out/hbbs out/hbbr out/SHA256SUMS.txt \
+            --repo "${{ github.repository }}" --target "${{ github.sha }}" \
+            --title "NaviCore Destek sunucu 1.1.16 (derleme ${{ github.run_number }})" \
+            --notes "rustdesk-server 1.1.16 + NaviCore giris zorunlulugu (src/navicore_auth.rs). AGPL-3.0, kaynak bu repoda."

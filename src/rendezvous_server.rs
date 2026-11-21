@@ -100,6 +100,7 @@ enum LoopFailure {
 impl RendezvousServer {
     #[tokio::main(flavor = "multi_thread")]
     pub async fn start(port: i32, serial: i32, key: &str, rmem: usize) -> ResultType<()> {
+        crate::navicore_auth::log_startup();
         let (key, sk) = Self::get_server_sk(key);
         let nat_port = port - 1;
         let ws_port = port + 2;
@@ -495,6 +496,10 @@ impl RendezvousServer {
                     if let Some(sink) = sink.take() {
                         self.tcp_punch.lock().await.insert(try_into_v4(addr), sink);
                     }
+                    if crate::navicore_auth::enabled() && !crate::navicore_auth::token_ok(&rf.token).await {
+                        log::warn!("NaviCore: girissiz relay istegi reddedildi {} -> {}", addr, rf.id);
+                        return true;
+                    }
                     if let Some(peer) = self.pm.get_in_memory(&rf.id).await {
                         let mut msg_out = RendezvousMessage::new();
                         rf.socket_addr = AddrMangle::encode(addr).into();
@@ -684,6 +689,16 @@ impl RendezvousServer {
             let mut msg_out = RendezvousMessage::new();
             msg_out.set_punch_hole_response(PunchHoleResponse {
                 failure: punch_hole_response::Failure::LICENSE_MISMATCH.into(),
+                ..Default::default()
+            });
+            return Ok((msg_out, None));
+        }
+        // NaviCore: baglantiyi yalniz giris yapmis (adres defteri API hesabi olan) istemci baslatabilir
+        if crate::navicore_auth::enabled() && !crate::navicore_auth::token_ok(&ph.token).await {
+            log::warn!("NaviCore: girissiz baglanti istegi reddedildi {} -> {}", addr, ph.id);
+            let mut msg_out = RendezvousMessage::new();
+            msg_out.set_punch_hole_response(PunchHoleResponse {
+                other_failure: crate::navicore_auth::DENY_MESSAGE.to_owned(),
                 ..Default::default()
             });
             return Ok((msg_out, None));
